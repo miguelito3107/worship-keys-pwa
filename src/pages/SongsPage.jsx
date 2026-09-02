@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Trash2, ExternalLink } from 'lucide-react';
+import { Plus, Trash2, ExternalLink, Pencil } from 'lucide-react';
 
 export const SongsPage = () => {
   const { userData, isAdmin } = useAuth();
   const [songs, setSongs] = useState([]);
   const [singers, setSingers] = useState([]);
   const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState(null); // Nuevo estado para saber si editamos
 
   // Formulario Canción
   const [title, setTitle] = useState('');
@@ -27,7 +28,8 @@ export const SongsPage = () => {
     const unsubscribeSingers = onSnapshot(qSingers, (snapshot) => {
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       setSingers(data);
-      if (data.length > 0 && !singerId) setSingerId(data[0].id);
+      // Solo auto-seleccionar si no estamos editando y no hay un cantante seleccionado
+      if (data.length > 0 && !singerId && !editingId) setSingerId(data[0].id);
     });
 
     // Cargar Canciones
@@ -40,15 +42,48 @@ export const SongsPage = () => {
       unsubscribeSingers();
       unsubscribeSongs();
     };
-  }, [userData]);
+  }, [userData, editingId, singerId]);
 
-  const handleAddSong = async (e) => {
+  const handleOpenCreateModal = () => {
+    setEditingId(null);
+    setTitle('');
+    setSingerId(singers.length > 0 ? singers[0].id : '');
+    setKey('G');
+    setChordUrl('');
+    setReferenceUrl('');
+    setBpm('');
+    setTimeSignature('4/4');
+    setShowModal(true);
+  };
+
+  const handleOpenEditModal = (song) => {
+    setEditingId(song.id);
+    setTitle(song.title || '');
+    setSingerId(song.singerId || '');
+    setKey(song.key || 'G');
+    setChordUrl(song.chordUrl || '');
+    setReferenceUrl(song.referenceUrl || '');
+    setBpm(song.bpm ? song.bpm.toString() : '');
+    setTimeSignature(song.timeSignature || '4/4');
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setEditingId(null);
+    setTitle('');
+    setChordUrl('');
+    setReferenceUrl('');
+    setBpm('');
+  };
+
+  const handleSaveSong = async (e) => {
     e.preventDefault();
     if (!title.trim() || !singerId) return;
 
     const singerObj = singers.find(s => s.id === singerId);
-
-    await addDoc(collection(db, "songs"), {
+    
+    const songData = {
       title,
       singerId,
       singerName: singerObj ? singerObj.name : 'Desconocido',
@@ -57,15 +92,22 @@ export const SongsPage = () => {
       referenceUrl,
       bpm: bpm ? parseInt(bpm) : null,
       timeSignature,
-      churchId: userData.churchId,
-      createdAt: serverTimestamp()
-    });
+    };
 
-    setTitle('');
-    setChordUrl('');
-    setReferenceUrl('');
-    setBpm('');
-    setShowModal(false);
+    if (editingId) {
+      // Actualizar canción existente
+      const songRef = doc(db, "songs", editingId);
+      await updateDoc(songRef, songData);
+    } else {
+      // Crear nueva canción
+      await addDoc(collection(db, "songs"), {
+        ...songData,
+        churchId: userData.churchId,
+        createdAt: serverTimestamp()
+      });
+    }
+
+    handleCloseModal();
   };
 
   const handleDeleteSong = async (id) => {
@@ -81,13 +123,15 @@ export const SongsPage = () => {
           <h2 className="text-xl font-bold text-slate-100">Catálogo General de Canciones</h2>
           <p className="text-xs text-slate-400">Todas las canciones registradas por la iglesia</p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition-colors"
-        >
-          <Plus size={16} />
-          <span>Nueva Canción</span>
-        </button>
+        {isAdmin && (
+          <button
+            onClick={handleOpenCreateModal}
+            className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition-colors"
+          >
+            <Plus size={16} />
+            <span>Nueva Canción</span>
+          </button>
+        )}
       </div>
 
       <div className="space-y-3">
@@ -111,29 +155,41 @@ export const SongsPage = () => {
 
             <div className="flex items-center gap-2">
               {song.chordUrl && (
-                <a href={song.chordUrl} target="_blank" rel="noreferrer" className="p-2 bg-slate-800 text-indigo-400 hover:bg-slate-700 rounded-lg text-xs">
+                <a href={song.chordUrl} target="_blank" rel="noreferrer" className="p-2 bg-slate-800 text-indigo-400 hover:bg-slate-700 rounded-lg text-xs" title="Ver Acordes">
                   <ExternalLink size={14} />
                 </a>
               )}
               {isAdmin && (
-                <button
-                  onClick={() => handleDeleteSong(song.id)}
-                  className="p-2 text-slate-500 hover:text-rose-400 transition-colors"
-                >
-                  <Trash2 size={14} />
-                </button>
+                <>
+                  <button
+                    onClick={() => handleOpenEditModal(song)}
+                    className="p-2 text-slate-500 hover:text-indigo-400 transition-colors"
+                    title="Editar canción"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteSong(song.id)}
+                    className="p-2 text-slate-500 hover:text-rose-400 transition-colors"
+                    title="Eliminar canción"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </>
               )}
             </div>
           </div>
         ))}
       </div>
 
-      {/* Modal Registrar Canción */}
+      {/* Modal Registrar / Editar Canción */}
       {showModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-md">
-            <h3 className="text-base font-bold text-slate-100 mb-4">Registrar Nueva Canción</h3>
-            <form onSubmit={handleAddSong} className="space-y-3">
+            <h3 className="text-base font-bold text-slate-100 mb-4">
+              {editingId ? 'Editar Canción' : 'Registrar Nueva Canción'}
+            </h3>
+            <form onSubmit={handleSaveSong} className="space-y-3">
               <div>
                 <label className="block text-xs text-slate-300 mb-1">Título de la Canción</label>
                 <input
@@ -152,8 +208,9 @@ export const SongsPage = () => {
                   <select
                     value={singerId}
                     onChange={(e) => setSingerId(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none"
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
                   >
+                    <option value="">-- Seleccionar --</option>
                     {singers.map(s => (
                       <option key={s.id} value={s.id}>{s.name}</option>
                     ))}
@@ -166,7 +223,7 @@ export const SongsPage = () => {
                     required
                     value={key}
                     onChange={(e) => setKey(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none"
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
                     placeholder="Ej. G / F#m"
                   />
                 </div>
@@ -179,7 +236,7 @@ export const SongsPage = () => {
                     type="number"
                     value={bpm}
                     onChange={(e) => setBpm(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none"
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
                     placeholder="Ej. 72"
                   />
                 </div>
@@ -189,7 +246,7 @@ export const SongsPage = () => {
                     type="text"
                     value={timeSignature}
                     onChange={(e) => setTimeSignature(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none"
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
                     placeholder="4/4, 6/8..."
                   />
                 </div>
@@ -201,7 +258,7 @@ export const SongsPage = () => {
                   type="url"
                   value={chordUrl}
                   onChange={(e) => setChordUrl(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
                   placeholder="https://lacucaracha.com/acordes..."
                 />
               </div>
@@ -212,7 +269,7 @@ export const SongsPage = () => {
                   type="url"
                   value={referenceUrl}
                   onChange={(e) => setReferenceUrl(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
                   placeholder="https://youtube.com/watch..."
                 />
               </div>
@@ -220,7 +277,7 @@ export const SongsPage = () => {
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
+                  onClick={handleCloseModal}
                   className="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200"
                 >
                   Cancelar
@@ -229,7 +286,7 @@ export const SongsPage = () => {
                   type="submit"
                   className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg"
                 >
-                  Guardar Canción
+                  {editingId ? 'Actualizar Canción' : 'Guardar Canción'}
                 </button>
               </div>
             </form>
