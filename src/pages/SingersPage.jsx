@@ -9,6 +9,9 @@ export const SingersPage = () => {
   const [singers, setSingers] = useState([]);
   const [songs, setSongs] = useState([]);
   const [selectedSingerId, setSelectedSingerId] = useState(null);
+  
+  // Estados de búsqueda
+  const [singerSearch, setSingerSearch] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
   // Formulario nuevo cantante
@@ -77,6 +80,12 @@ export const SingersPage = () => {
     }
   };
 
+  // Filtrar cantantes por barra de búsqueda
+  const filteredSingers = singers.filter(singer => 
+    singer.name.toLowerCase().includes(singerSearch.toLowerCase()) ||
+    singer.voiceType.toLowerCase().includes(singerSearch.toLowerCase())
+  );
+
   // Filtrar canciones por cantante seleccionado y término de búsqueda
   const filteredSongs = songs.filter(song => {
     const matchesSinger = selectedSingerId ? song.singerId === selectedSingerId : true;
@@ -106,27 +115,42 @@ export const SingersPage = () => {
         )}
       </div>
 
-      {/* Selector Horizontal de Cantantes */}
-      <div className="flex gap-2 overflow-x-auto pb-3 mb-6 no-scrollbar">
-        {singers.map((singer) => (
-          <button
-            key={singer.id}
-            onClick={() => setSelectedSingerId(singer.id)}
-            className={`flex-shrink-0 px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 border ${
-              selectedSingerId === singer.id
-                ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20'
-                : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
-            }`}
-          >
-            <span>{singer.name}</span>
-            <span className="text-[10px] opacity-70 px-1.5 py-0.5 bg-black/20 rounded">
-              {singer.voiceType}
-            </span>
-          </button>
-        ))}
-        {singers.length === 0 && (
-          <p className="text-xs text-slate-500 py-2">No hay cantantes registrados en esta iglesia.</p>
-        )}
+      {/* Buscador y Selector de Cantantes */}
+      <div className="mb-8 space-y-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-2.5 text-slate-500" size={16} />
+          <input
+            type="text"
+            placeholder="Buscar cantante por nombre o tipo de voz..."
+            value={singerSearch}
+            onChange={(e) => setSingerSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
+          />
+        </div>
+        
+        <div className="flex flex-wrap gap-2">
+          {filteredSingers.map((singer) => (
+            <button
+              key={singer.id}
+              onClick={() => setSelectedSingerId(singer.id)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-2 border ${
+                selectedSingerId === singer.id
+                  ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20'
+                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:bg-slate-800'
+              }`}
+            >
+              <span>{singer.name}</span>
+              <span className="text-[10px] opacity-70 px-1.5 py-0.5 bg-black/20 rounded">
+                {singer.voiceType}
+              </span>
+            </button>
+          ))}
+          {filteredSingers.length === 0 && (
+            <p className="text-xs text-slate-500 py-2 pl-1">
+              {singers.length === 0 ? "No hay cantantes registrados en esta iglesia." : "No se encontraron cantantes."}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Buscador de Canciones para el cantante seleccionado */}
@@ -140,7 +164,7 @@ export const SingersPage = () => {
             {isAdmin && (
               <button
                 onClick={() => handleDeleteSinger(selectedSinger.id)}
-                className="text-slate-500 hover:text-rose-400 transition-colors p-1"
+                className="text-slate-500 hover:text-rose-400 transition-colors p-1 bg-slate-800 hover:bg-rose-500/10 rounded-md"
                 title="Eliminar cantante"
               >
                 <Trash2 size={16} />
@@ -152,7 +176,7 @@ export const SingersPage = () => {
             <Search className="absolute left-3 top-2.5 text-slate-500" size={16} />
             <input
               type="text"
-              placeholder="Buscar por título o tonalidad..."
+              placeholder="Buscar canción por título o tonalidad..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-9 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
@@ -217,7 +241,7 @@ export const SingersPage = () => {
         )}
       </div>
 
-      {/* Modal Modal Registrar Cantante */}
+      {/* Modal Registrar Cantante */}
       {showModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-sm">
@@ -239,7 +263,7 @@ export const SingersPage = () => {
                 <select
                   value={voiceType}
                   onChange={(e) => setVoiceType(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
                 >
                   <option value="Soprano">Soprano</option>
                   <option value="Mezzosoprano">Mezzosoprano</option>
