@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Trash2, ExternalLink, Pencil } from 'lucide-react';
+import { Plus, Trash2, Pencil, FileText, PlayCircle } from 'lucide-react';
 
 export const SongsPage = () => {
   const { userData, isAdmin } = useAuth();
   const [songs, setSongs] = useState([]);
   const [singers, setSingers] = useState([]);
   const [showModal, setShowModal] = useState(false);
-  const [editingId, setEditingId] = useState(null); // Nuevo estado para saber si editamos
+  const [editingId, setEditingId] = useState(null);
 
   // Formulario Canción
   const [title, setTitle] = useState('');
@@ -136,8 +136,8 @@ export const SongsPage = () => {
 
       <div className="space-y-3">
         {songs.map((song) => (
-          <div key={song.id} className="p-4 bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-between">
-            <div className="space-y-1">
+          <div key={song.id} className="p-4 bg-slate-900 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1.5">
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-semibold text-slate-100">{song.title}</h3>
                 <span className="text-[10px] px-2 py-0.5 bg-slate-800 text-indigo-300 rounded-full border border-slate-700">
@@ -153,29 +153,54 @@ export const SongsPage = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              {song.chordUrl && (
-                <a href={song.chordUrl} target="_blank" rel="noreferrer" className="p-2 bg-slate-800 text-indigo-400 hover:bg-slate-700 rounded-lg text-xs" title="Ver Acordes">
-                  <ExternalLink size={14} />
-                </a>
-              )}
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              
+              {/* Botones de Enlaces */}
+              <div className="flex items-center gap-2">
+                {song.chordUrl && (
+                  <a 
+                    href={song.chordUrl} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 border border-indigo-500/20 rounded-lg transition-colors text-xs font-medium" 
+                    title="Ver Acordes"
+                  >
+                    <FileText size={14} />
+                    <span className="hidden sm:inline">Acordes</span>
+                  </a>
+                )}
+                {song.referenceUrl && (
+                  <a 
+                    href={song.referenceUrl} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/20 rounded-lg transition-colors text-xs font-medium" 
+                    title="Escuchar Referencia"
+                  >
+                    <PlayCircle size={14} />
+                    <span className="hidden sm:inline">Audio</span>
+                  </a>
+                )}
+              </div>
+
+              {/* Botones de Admin */}
               {isAdmin && (
-                <>
+                <div className="flex items-center gap-1 pl-2 ml-1 border-l border-slate-700/50">
                   <button
                     onClick={() => handleOpenEditModal(song)}
-                    className="p-2 text-slate-500 hover:text-indigo-400 transition-colors"
+                    className="p-1.5 text-slate-500 hover:text-indigo-400 hover:bg-slate-800 rounded-md transition-colors"
                     title="Editar canción"
                   >
-                    <Pencil size={14} />
+                    <Pencil size={15} />
                   </button>
                   <button
                     onClick={() => handleDeleteSong(song.id)}
-                    className="p-2 text-slate-500 hover:text-rose-400 transition-colors"
+                    className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-slate-800 rounded-md transition-colors"
                     title="Eliminar canción"
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={15} />
                   </button>
-                </>
+                </div>
               )}
             </div>
           </div>
