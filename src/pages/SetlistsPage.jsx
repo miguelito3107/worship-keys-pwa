@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
-import { Calendar, Plus, ExternalLink, Pencil, Trash2, Search, Mic, Users, ChevronDown, ChevronUp } from 'lucide-react';
+import { Calendar, Plus, ExternalLink, Pencil, Trash2, Search, Mic, Users, ChevronDown, ChevronUp, ArrowUp, ArrowDown, ListOrdered } from 'lucide-react';
 
 export const SetlistsPage = () => {
   const { userData, isAdmin } = useAuth();
   const [setlists, setSetlists] = useState([]);
   const [songs, setSongs] = useState([]);
-  const [singers, setSingers] = useState([]); // Nuevo estado para cantantes
+  const [singers, setSingers] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   
@@ -19,8 +19,8 @@ export const SetlistsPage = () => {
   const [title, setTitle] = useState('');
   const [date, setDate] = useState('');
   const [selectedSongIds, setSelectedSongIds] = useState([]);
-  const [mainSingerId, setMainSingerId] = useState(''); // Cantante principal
-  const [choirSingerIds, setChoirSingerIds] = useState([]); // Coros
+  const [mainSingerId, setMainSingerId] = useState('');
+  const [choirSingerIds, setChoirSingerIds] = useState([]);
   
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -39,7 +39,7 @@ export const SetlistsPage = () => {
       setSongs(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    // Cargar Cantantes (Nuevo)
+    // Cargar Cantantes
     const qSingers = query(collection(db, "singers"), where("churchId", "==", userData.churchId));
     const unsubscribeSingers = onSnapshot(qSingers, (snapshot) => {
       setSingers(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -58,6 +58,25 @@ export const SetlistsPage = () => {
     } else {
       setSelectedSongIds([...selectedSongIds, songId]);
     }
+  };
+
+  // Funciones para reordenar canciones seleccionadas
+  const moveSongUp = (index) => {
+    if (index === 0) return;
+    const newOrder = [...selectedSongIds];
+    const temp = newOrder[index - 1];
+    newOrder[index - 1] = newOrder[index];
+    newOrder[index] = temp;
+    setSelectedSongIds(newOrder);
+  };
+
+  const moveSongDown = (index) => {
+    if (index === selectedSongIds.length - 1) return;
+    const newOrder = [...selectedSongIds];
+    const temp = newOrder[index + 1];
+    newOrder[index + 1] = newOrder[index];
+    newOrder[index] = temp;
+    setSelectedSongIds(newOrder);
   };
 
   const handleToggleChoirSelect = (singerId) => {
@@ -88,7 +107,7 @@ export const SetlistsPage = () => {
   };
 
   const handleOpenEditModal = (setlist, e) => {
-    e.stopPropagation(); // Evita que se expanda el setlist al hacer clic en editar
+    e.stopPropagation();
     setEditingId(setlist.id);
     setTitle(setlist.title || '');
     setDate(setlist.date || '');
@@ -106,7 +125,7 @@ export const SetlistsPage = () => {
     const setlistData = {
       title,
       date,
-      songIds: selectedSongIds,
+      songIds: selectedSongIds, // Mantiene el orden estricto del array
       mainSingerId,
       choirSingerIds,
     };
@@ -126,7 +145,7 @@ export const SetlistsPage = () => {
   };
 
   const handleDeleteSetlist = async (id, setlistTitle, e) => {
-    e.stopPropagation(); // Evita que se expanda el setlist al hacer clic en eliminar
+    e.stopPropagation();
     const confirmDelete = window.confirm(`¿Estás seguro de que deseas eliminar el setlist "${setlistTitle}"?`);
     if (confirmDelete) {
       await deleteDoc(doc(db, "setlists", id));
@@ -147,7 +166,7 @@ export const SetlistsPage = () => {
   // Filtrar y agrupar canciones para el modal
   const filteredSongs = songs.filter(song => 
     song.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    song.singerName.toLowerCase().includes(searchTerm.toLowerCase())
+    (song.singerName && song.singerName.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const groupedSongs = filteredSongs.reduce((acc, song) => {
@@ -157,7 +176,6 @@ export const SetlistsPage = () => {
     return acc;
   }, {});
 
-  // Cantantes disponibles para el coro (excluyendo al principal)
   const availableChoirSingers = singers.filter(singer => singer.id !== mainSingerId);
 
   return (
@@ -180,7 +198,11 @@ export const SetlistsPage = () => {
 
       <div className="space-y-4">
         {setlists.map((setlist) => {
-          const listSongs = songs.filter(s => setlist.songIds?.includes(s.id));
+          // Respetar el orden estricto mapeando songIds
+          const listSongs = (setlist.songIds || [])
+            .map(id => songs.find(s => s.id === id))
+            .filter(Boolean);
+
           const mainSinger = singers.find(s => s.id === setlist.mainSingerId);
           const choirSingers = singers.filter(s => setlist.choirSingerIds?.includes(s.id));
           const isExpanded = expandedSetlists.includes(setlist.id);
@@ -190,7 +212,7 @@ export const SetlistsPage = () => {
               key={setlist.id} 
               className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden transition-all duration-200"
             >
-              {/* Cabecera del Setlist (Siempre visible) */}
+              {/* Cabecera del Setlist */}
               <div 
                 className="p-5 cursor-pointer hover:bg-slate-800/50 transition-colors"
                 onClick={() => toggleSetlistExpand(setlist.id)}
@@ -241,7 +263,7 @@ export const SetlistsPage = () => {
                 </div>
               </div>
 
-              {/* Contenido Detallado (Visible solo si está expandido) */}
+              {/* Contenido Detallado */}
               {isExpanded && (
                 <div className="p-5 pt-0 border-t border-slate-800/50 bg-slate-900/50">
                   
@@ -272,14 +294,14 @@ export const SetlistsPage = () => {
                     </div>
                   )}
 
-                  {/* Lista de Canciones */}
+                  {/* Lista de Canciones en Orden de Escenario */}
                   <div>
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Canciones ({listSongs.length})</h4>
                     <div className="space-y-2">
                       {listSongs.map((song, idx) => (
                         <div key={song.id} className="flex items-center justify-between p-3 bg-slate-800/40 rounded-lg text-sm border border-slate-700/30">
                           <div className="flex items-center gap-3">
-                            <span className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-xs text-slate-400 font-mono font-bold">
+                            <span className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-xs text-indigo-400 font-mono font-bold border border-indigo-500/20">
                               {idx + 1}
                             </span>
                             <div>
@@ -360,7 +382,6 @@ export const SetlistsPage = () => {
                     value={mainSingerId}
                     onChange={(e) => {
                       setMainSingerId(e.target.value);
-                      // Si el principal estaba en coros, lo quitamos
                       if (choirSingerIds.includes(e.target.value)) {
                         setChoirSingerIds(choirSingerIds.filter(id => id !== e.target.value));
                       }
@@ -399,9 +420,57 @@ export const SetlistsPage = () => {
                 )}
               </div>
 
+              {/* ORDEN DE CANCIONES SELECCIONADAS (NUEVO) */}
+              {selectedSongIds.length > 0 && (
+                <div className="pt-4 border-t border-slate-800">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-bold text-indigo-400 uppercase flex items-center gap-1">
+                      <ListOrdered size={14} /> Orden en el Escenario
+                    </label>
+                    <span className="text-[10px] text-slate-400">{selectedSongIds.length} seleccionada(s)</span>
+                  </div>
+                  <div className="space-y-1.5 bg-slate-950 p-2 rounded-xl border border-slate-800 max-h-40 overflow-y-auto">
+                    {selectedSongIds.map((id, index) => {
+                      const song = songs.find(s => s.id === id);
+                      if (!song) return null;
+                      return (
+                        <div key={id} className="flex items-center justify-between p-2 bg-slate-900 border border-slate-800 rounded-lg text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded bg-indigo-950 text-indigo-400 font-mono font-bold flex items-center justify-center text-[10px]">
+                              {index + 1}
+                            </span>
+                            <span className="text-slate-200 font-medium truncate max-w-[160px]">{song.title}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              disabled={index === 0}
+                              onClick={() => moveSongUp(index)}
+                              className="p-1 bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-30 rounded transition-colors"
+                              title="Subir posición"
+                            >
+                              <ArrowUp size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={index === selectedSongIds.length - 1}
+                              onClick={() => moveSongDown(index)}
+                              className="p-1 bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-30 rounded transition-colors"
+                              title="Bajar posición"
+                            >
+                              <ArrowDown size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Selección de Canciones */}
               <div className="pt-4 border-t border-slate-800">
-                <label className="block text-xs font-bold text-slate-300 mb-2 uppercase">Repertorio</label>
+                <label className="block text-xs font-bold text-slate-300 mb-2 uppercase">Seleccionar del Repertorio</label>
                 
                 {/* Buscador */}
                 <div className="relative mb-3">
@@ -447,12 +516,6 @@ export const SetlistsPage = () => {
                       </div>
                     ))
                   )}
-                </div>
-                
-                <div className="mt-2 text-right">
-                  <span className="text-[10px] text-slate-400 bg-slate-800 px-2 py-1 rounded-full">
-                    {selectedSongIds.length} canciones seleccionadas
-                  </span>
                 </div>
               </div>
 
