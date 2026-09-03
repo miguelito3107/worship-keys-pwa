@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
-import { UserPlus, Search, ExternalLink, Music2, Trash2, X, Check } from 'lucide-react';
+import { UserPlus, Search, ExternalLink, Music2, Trash2, X, Check, Plus } from 'lucide-react';
 
 export const SingersPage = () => {
   const { userData, isAdmin } = useAuth();
@@ -18,9 +18,18 @@ export const SingersPage = () => {
   const searchRef = useRef(null);
 
   // Formulario nuevo cantante
-  const [showModal, setShowModal] = useState(false);
+  const [showSingerModal, setShowSingerModal] = useState(false);
   const [singerName, setSingerName] = useState('');
   const [voiceType, setVoiceType] = useState('Soprano');
+
+  // Formulario nueva canción para el cantante seleccionado
+  const [showSongModal, setShowSongModal] = useState(false);
+  const [songTitle, setSongTitle] = useState('');
+  const [songKey, setSongKey] = useState('C');
+  const [songBpm, setSongBpm] = useState('');
+  const [songTimeSignature, setSongTimeSignature] = useState('4/4');
+  const [songChordUrl, setSongChordUrl] = useState('');
+  const [songReferenceUrl, setSongReferenceUrl] = useState('');
 
   // Detectar clics fuera del buscador para cerrar la vista previa
   useEffect(() => {
@@ -79,7 +88,36 @@ export const SingersPage = () => {
     });
 
     setSingerName('');
-    setShowModal(false);
+    setShowSingerModal(false);
+  };
+
+  const handleAddSong = async (e) => {
+    e.preventDefault();
+    if (!songTitle.trim() || !selectedSingerId) return;
+
+    const selectedSingerObj = singers.find(s => s.id === selectedSingerId);
+
+    await addDoc(collection(db, "songs"), {
+      title: songTitle,
+      key: songKey,
+      bpm: songBpm ? Number(songBpm) : null,
+      timeSignature: songTimeSignature,
+      chordUrl: songChordUrl.trim() || null,
+      referenceUrl: songReferenceUrl.trim() || null,
+      singerId: selectedSingerId,
+      singerName: selectedSingerObj ? selectedSingerObj.name : '',
+      churchId: userData.churchId,
+      createdAt: serverTimestamp()
+    });
+
+    // Limpiar campos del formulario
+    setSongTitle('');
+    setSongKey('C');
+    setSongBpm('');
+    setSongTimeSignature('4/4');
+    setSongChordUrl('');
+    setSongReferenceUrl('');
+    setShowSongModal(false);
   };
 
   const handleDeleteSinger = async (singerId) => {
@@ -130,7 +168,7 @@ export const SingersPage = () => {
         </div>
         {isAdmin && (
           <button
-            onClick={() => setShowModal(true)}
+            onClick={() => setShowSingerModal(true)}
             className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition-colors"
           >
             <UserPlus size={16} />
@@ -203,7 +241,7 @@ export const SingersPage = () => {
         <>
           {/* Ficha del Cantante y Buscador Interno de Canciones */}
           <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 mb-6">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex justify-between items-start mb-4">
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-semibold text-slate-100">{selectedSinger.name}</h3>
@@ -215,15 +253,28 @@ export const SingersPage = () => {
                   {filteredSongs.length} canción(es) en su repertorio
                 </p>
               </div>
-              {isAdmin && (
+
+              {/* Botones de acción dentro de la tarjeta (Visibles para todos los usuarios) */}
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => handleDeleteSinger(selectedSinger.id)}
-                  className="text-slate-500 hover:text-rose-400 transition-colors p-1.5 bg-slate-800 hover:bg-rose-500/10 rounded-lg"
-                  title="Eliminar cantante"
+                  onClick={() => setShowSongModal(true)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition-colors shadow-sm"
+                  title="Añadir canción a este cantante"
                 >
-                  <Trash2 size={16} />
+                  <Plus size={14} />
+                  <span>Añadir Canción</span>
                 </button>
-              )}
+
+                {isAdmin && (
+                  <button
+                    onClick={() => handleDeleteSinger(selectedSinger.id)}
+                    className="text-slate-500 hover:text-rose-400 transition-colors p-1.5 bg-slate-800 hover:bg-rose-500/10 rounded-lg"
+                    title="Eliminar cantante"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="relative">
@@ -306,7 +357,7 @@ export const SingersPage = () => {
       )}
 
       {/* Modal Registrar Cantante */}
-      {showModal && (
+      {showSingerModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-sm">
             <h3 className="text-base font-bold text-slate-100 mb-4">Registrar Nuevo Cantante</h3>
@@ -340,7 +391,7 @@ export const SingersPage = () => {
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
+                  onClick={() => setShowSingerModal(false)}
                   className="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200"
                 >
                   Cancelar
@@ -350,6 +401,108 @@ export const SingersPage = () => {
                   className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg"
                 >
                   Guardar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Registrar Canción para Cantante */}
+      {showSongModal && selectedSinger && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-md">
+            <h3 className="text-base font-bold text-slate-100 mb-1">Añadir Canción</h3>
+            <p className="text-xs text-slate-400 mb-4">
+              Asignando canción a <span className="text-indigo-400 font-medium">{selectedSinger.name}</span>
+            </p>
+
+            <form onSubmit={handleAddSong} className="space-y-3">
+              <div>
+                <label className="block text-xs text-slate-300 mb-1">Título de la Canción *</label>
+                <input
+                  type="text"
+                  required
+                  value={songTitle}
+                  onChange={(e) => setSongTitle(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                  placeholder="Ej. La Bondad de Dios"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-xs text-slate-300 mb-1">Tonalidad</label>
+                  <select
+                    value={songKey}
+                    onChange={(e) => setSongKey(e.target.value)}
+                    className="w-full px-2 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-indigo-500 font-mono"
+                  >
+                    {['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B', 'Cm', 'Dm', 'Em', 'Fm', 'Gm', 'Am', 'Bm'].map(k => (
+                      <option key={k} value={k}>{k}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-300 mb-1">BPM</label>
+                  <input
+                    type="number"
+                    value={songBpm}
+                    onChange={(e) => setSongBpm(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-indigo-500 font-mono"
+                    placeholder="72"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-300 mb-1">Compás</label>
+                  <input
+                    type="text"
+                    value={songTimeSignature}
+                    onChange={(e) => setSongTimeSignature(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-indigo-500 font-mono"
+                    placeholder="4/4"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-300 mb-1">Enlace de Acordes (Opcional)</label>
+                <input
+                  type="url"
+                  value={songChordUrl}
+                  onChange={(e) => setSongChordUrl(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                  placeholder="https://lacuerda.net/..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-300 mb-1">Enlace Referencia Audio/Video (Opcional)</label>
+                <input
+                  type="url"
+                  value={songReferenceUrl}
+                  onChange={(e) => setSongReferenceUrl(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                  placeholder="https://youtube.com/..."
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-800 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowSongModal(false)}
+                  className="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={!songTitle.trim()}
+                  className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-medium rounded-lg transition-colors"
+                >
+                  Guardar Canción
                 </button>
               </div>
             </form>
