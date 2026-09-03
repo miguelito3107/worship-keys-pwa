@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Trash2, Pencil, FileText, PlayCircle } from 'lucide-react';
+import { Plus, Trash2, Pencil, FileText, PlayCircle, Search, X } from 'lucide-react';
 
 export const SongsPage = () => {
   const { userData, isAdmin } = useAuth();
@@ -10,6 +10,9 @@ export const SongsPage = () => {
   const [singers, setSingers] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
+
+  // Estado del Buscador
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Formulario Canción
   const [title, setTitle] = useState('');
@@ -116,6 +119,18 @@ export const SongsPage = () => {
     }
   };
 
+  // Filtrado de Canciones por Título, Cantante o Tonalidad
+  const filteredSongs = songs.filter((song) => {
+    const term = searchTerm.toLowerCase().trim();
+    if (!term) return true;
+
+    const matchesTitle = song.title?.toLowerCase().includes(term);
+    const matchesSinger = song.singerName?.toLowerCase().includes(term);
+    const matchesKey = song.key?.toLowerCase().includes(term);
+
+    return matchesTitle || matchesSinger || matchesKey;
+  });
+
   return (
     <div className="p-4 max-w-4xl mx-auto pb-24">
       <div className="flex justify-between items-center mb-6">
@@ -134,77 +149,106 @@ export const SongsPage = () => {
         )}
       </div>
 
+      {/* Buscador */}
+      <div className="relative mb-5">
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Buscar por título, cantante o tonalidad..."
+          className="w-full pl-10 pr-10 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500/80 transition-colors"
+        />
+        {searchTerm && (
+          <button
+            onClick={() => setSearchTerm('')}
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+            title="Limpiar búsqueda"
+          >
+            <X size={16} />
+          </button>
+        )}
+      </div>
+
+      {/* Lista de Canciones */}
       <div className="space-y-3">
-        {songs.map((song) => (
-          <div key={song.id} className="p-4 bg-slate-900 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-semibold text-slate-100">{song.title}</h3>
-                <span className="text-[10px] px-2 py-0.5 bg-slate-800 text-indigo-300 rounded-full border border-slate-700">
-                  {song.singerName}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-xs">
-                <span className="font-mono font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-800/50 px-2 py-0.5 rounded">
-                  {song.key}
-                </span>
-                {song.bpm && <span className="text-slate-400 font-mono">{song.bpm} BPM</span>}
-                {song.timeSignature && <span className="text-slate-400 font-mono">{song.timeSignature}</span>}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 self-end sm:self-auto">
-              
-              {/* Botones de Enlaces */}
-              <div className="flex items-center gap-2">
-                {song.chordUrl && (
-                  <a 
-                    href={song.chordUrl} 
-                    target="_blank" 
-                    rel="noreferrer" 
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 border border-indigo-500/20 rounded-lg transition-colors text-xs font-medium" 
-                    title="Ver Acordes"
-                  >
-                    <FileText size={14} />
-                    <span className="hidden sm:inline">Acordes</span>
-                  </a>
-                )}
-                {song.referenceUrl && (
-                  <a 
-                    href={song.referenceUrl} 
-                    target="_blank" 
-                    rel="noreferrer" 
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/20 rounded-lg transition-colors text-xs font-medium" 
-                    title="Escuchar Referencia"
-                  >
-                    <PlayCircle size={14} />
-                    <span className="hidden sm:inline">Audio</span>
-                  </a>
-                )}
-              </div>
-
-              {/* Botones de Admin */}
-              {isAdmin && (
-                <div className="flex items-center gap-1 pl-2 ml-1 border-l border-slate-700/50">
-                  <button
-                    onClick={() => handleOpenEditModal(song)}
-                    className="p-1.5 text-slate-500 hover:text-indigo-400 hover:bg-slate-800 rounded-md transition-colors"
-                    title="Editar canción"
-                  >
-                    <Pencil size={15} />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteSong(song.id)}
-                    className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-slate-800 rounded-md transition-colors"
-                    title="Eliminar canción"
-                  >
-                    <Trash2 size={15} />
-                  </button>
+        {filteredSongs.length > 0 ? (
+          filteredSongs.map((song) => (
+            <div key={song.id} className="p-4 bg-slate-900 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-slate-100">{song.title}</h3>
+                  <span className="text-[10px] px-2 py-0.5 bg-slate-800 text-indigo-300 rounded-full border border-slate-700">
+                    {song.singerName}
+                  </span>
                 </div>
-              )}
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="font-mono font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-800/50 px-2 py-0.5 rounded">
+                    {song.key}
+                  </span>
+                  {song.bpm && <span className="text-slate-400 font-mono">{song.bpm} BPM</span>}
+                  {song.timeSignature && <span className="text-slate-400 font-mono">{song.timeSignature}</span>}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                {/* Botones de Enlaces */}
+                <div className="flex items-center gap-2">
+                  {song.chordUrl && (
+                    <a 
+                      href={song.chordUrl} 
+                      target="_blank" 
+                      rel="noreferrer" 
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 border border-indigo-500/20 rounded-lg transition-colors text-xs font-medium" 
+                      title="Ver Acordes"
+                    >
+                      <FileText size={14} />
+                      <span className="hidden sm:inline">Acordes</span>
+                    </a>
+                  )}
+                  {song.referenceUrl && (
+                    <a 
+                      href={song.referenceUrl} 
+                      target="_blank" 
+                      rel="noreferrer" 
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/20 rounded-lg transition-colors text-xs font-medium" 
+                      title="Escuchar Referencia"
+                    >
+                      <PlayCircle size={14} />
+                      <span className="hidden sm:inline">Audio</span>
+                    </a>
+                  )}
+                </div>
+
+                {/* Botones de Admin */}
+                {isAdmin && (
+                  <div className="flex items-center gap-1 pl-2 ml-1 border-l border-slate-700/50">
+                    <button
+                      onClick={() => handleOpenEditModal(song)}
+                      className="p-1.5 text-slate-500 hover:text-indigo-400 hover:bg-slate-800 rounded-md transition-colors"
+                      title="Editar canción"
+                    >
+                      <Pencil size={15} />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteSong(song.id)}
+                      className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-slate-800 rounded-md transition-colors"
+                      title="Eliminar canción"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
+          ))
+        ) : (
+          <div className="p-8 text-center text-slate-500 bg-slate-900/50 border border-slate-800/80 rounded-xl text-xs">
+            {searchTerm 
+              ? `No se encontraron canciones que coincidan con "${searchTerm}"`
+              : "No hay canciones registradas en la iglesia todavía."}
           </div>
-        ))}
+        )}
       </div>
 
       {/* Modal Registrar / Editar Canción */}
