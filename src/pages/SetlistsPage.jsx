@@ -163,11 +163,22 @@ export const SetlistsPage = () => {
     setShowModal(false);
   };
 
-  // Filtrar y agrupar canciones para el modal
-  const filteredSongs = songs.filter(song => 
-    song.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    (song.singerName && song.singerName.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  // 🔍 FILTRADO DE CANCIONES POR CANTANTE PRINCIPAL SELECCIONADO Y BÚSQUEDA
+  const selectedMainSinger = singers.find(s => s.id === mainSingerId);
+
+  const filteredSongs = songs.filter(song => {
+    // Si hay un cantante principal seleccionado, se muestran solo sus canciones
+    const matchesSinger = !mainSingerId || (
+      song.singerId === mainSingerId || 
+      (selectedMainSinger && song.singerName === selectedMainSinger.name)
+    );
+
+    // Filtro adicional por el buscador
+    const matchesSearch = song.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      (song.singerName && song.singerName.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    return matchesSinger && matchesSearch;
+  });
 
   const groupedSongs = filteredSongs.reduce((acc, song) => {
     const singer = song.singerName || 'Desconocido';
@@ -420,7 +431,7 @@ export const SetlistsPage = () => {
                 )}
               </div>
 
-              {/* ORDEN DE CANCIONES SELECCIONADAS (NUEVO) */}
+              {/* ORDEN DE CANCIONES SELECCIONADAS */}
               {selectedSongIds.length > 0 && (
                 <div className="pt-4 border-t border-slate-800">
                   <div className="flex items-center justify-between mb-2">
@@ -470,7 +481,9 @@ export const SetlistsPage = () => {
 
               {/* Selección de Canciones */}
               <div className="pt-4 border-t border-slate-800">
-                <label className="block text-xs font-bold text-slate-300 mb-2 uppercase">Seleccionar del Repertorio</label>
+                <label className="block text-xs font-bold text-slate-300 mb-2 uppercase">
+                  {mainSingerId ? `Repertorio de ${selectedMainSinger?.name || 'Cantante'}` : 'Seleccionar del Repertorio'}
+                </label>
                 
                 {/* Buscador */}
                 <div className="relative mb-3">
@@ -488,7 +501,11 @@ export const SetlistsPage = () => {
 
                 <div className="space-y-4 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
                   {Object.keys(groupedSongs).length === 0 ? (
-                    <p className="text-xs text-slate-500 text-center py-4">No se encontraron canciones.</p>
+                    <p className="text-xs text-slate-500 text-center py-4">
+                      {mainSingerId 
+                        ? 'No hay canciones registradas para este cantante.' 
+                        : 'No se encontraron canciones.'}
+                    </p>
                   ) : (
                     Object.keys(groupedSongs).sort().map(singer => (
                       <div key={singer} className="bg-slate-800/30 rounded-lg p-2 border border-slate-800/50">
