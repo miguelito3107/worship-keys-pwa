@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
-import { UserPlus, Search, ExternalLink, Music2, Trash2 } from 'lucide-react';
+import { UserPlus, Search, ExternalLink, Music2, Trash2, X, Check } from 'lucide-react';
 
 export const SingersPage = () => {
   const { userData, isAdmin } = useAuth();
@@ -10,14 +10,28 @@ export const SingersPage = () => {
   const [songs, setSongs] = useState([]);
   const [selectedSingerId, setSelectedSingerId] = useState(null);
   
-  // Estados de búsqueda
+  // Estados de búsqueda y dropdown
   const [singerSearch, setSingerSearch] = useState('');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  const searchRef = useRef(null);
 
   // Formulario nuevo cantante
   const [showModal, setShowModal] = useState(false);
   const [singerName, setSingerName] = useState('');
   const [voiceType, setVoiceType] = useState('Soprano');
+
+  // Detectar clics fuera del buscador para cerrar la vista previa
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Sincronizar Cantantes de la Iglesia en tiempo real
   useEffect(() => {
@@ -31,9 +45,6 @@ export const SingersPage = () => {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setSingers(data);
-      if (data.length > 0 && !selectedSingerId) {
-        setSelectedSingerId(data[0].id);
-      }
     });
 
     return unsubscribe;
@@ -76,19 +87,32 @@ export const SingersPage = () => {
       await deleteDoc(doc(db, "singers", singerId));
       if (selectedSingerId === singerId) {
         setSelectedSingerId(null);
+        setSingerSearch('');
       }
     }
   };
 
-  // Filtrar cantantes por barra de búsqueda
+  const handleSelectSinger = (singer) => {
+    setSelectedSingerId(singer.id);
+    setSingerSearch(singer.name);
+    setIsDropdownOpen(false);
+  };
+
+  const handleClearSingerSelection = () => {
+    setSelectedSingerId(null);
+    setSingerSearch('');
+    setIsDropdownOpen(false);
+  };
+
+  // Filtrar cantantes por la barra de búsqueda
   const filteredSingers = singers.filter(singer => 
     singer.name.toLowerCase().includes(singerSearch.toLowerCase()) ||
     singer.voiceType.toLowerCase().includes(singerSearch.toLowerCase())
   );
 
-  // Filtrar canciones por cantante seleccionado y término de búsqueda
+  // Filtrar canciones del cantante seleccionado
   const filteredSongs = songs.filter(song => {
-    const matchesSinger = selectedSingerId ? song.singerId === selectedSingerId : true;
+    const matchesSinger = selectedSingerId ? song.singerId === selectedSingerId : false;
     const matchesSearch = song.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           song.key.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesSinger && matchesSearch;
@@ -102,7 +126,7 @@ export const SingersPage = () => {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-xl font-bold text-slate-100">Directorio de Cantantes</h2>
-          <p className="text-xs text-slate-400">Consulta y filtro de tonalidades asignadas</p>
+          <p className="text-xs text-slate-400">Busca un cantante para ver su repertorio y tonalidades</p>
         </div>
         {isAdmin && (
           <button
@@ -115,131 +139,171 @@ export const SingersPage = () => {
         )}
       </div>
 
-      {/* Buscador y Selector de Cantantes */}
-      <div className="mb-8 space-y-3">
+      {/* Buscador con Vista Previa Desplegable */}
+      <div className="mb-8 relative" ref={searchRef}>
         <div className="relative">
           <Search className="absolute left-3 top-2.5 text-slate-500" size={16} />
           <input
             type="text"
             placeholder="Buscar cantante por nombre o tipo de voz..."
             value={singerSearch}
-            onChange={(e) => setSingerSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
+            onFocus={() => setIsDropdownOpen(true)}
+            onChange={(e) => {
+              setSingerSearch(e.target.value);
+              setIsDropdownOpen(true);
+            }}
+            className="w-full pl-9 pr-10 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
           />
-        </div>
-        
-        <div className="flex flex-wrap gap-2">
-          {filteredSingers.map((singer) => (
+          {singerSearch && (
             <button
-              key={singer.id}
-              onClick={() => setSelectedSingerId(singer.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-2 border ${
-                selectedSingerId === singer.id
-                  ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20'
-                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:bg-slate-800'
-              }`}
+              onClick={handleClearSingerSelection}
+              className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 transition-colors"
+              title="Limpiar búsqueda"
             >
-              <span>{singer.name}</span>
-              <span className="text-[10px] opacity-70 px-1.5 py-0.5 bg-black/20 rounded">
-                {singer.voiceType}
-              </span>
+              <X size={16} />
             </button>
-          ))}
-          {filteredSingers.length === 0 && (
-            <p className="text-xs text-slate-500 py-2 pl-1">
-              {singers.length === 0 ? "No hay cantantes registrados en esta iglesia." : "No se encontraron cantantes."}
-            </p>
           )}
         </div>
-      </div>
 
-      {/* Buscador de Canciones para el cantante seleccionado */}
-      {selectedSinger && (
-        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <h3 className="text-sm font-semibold text-slate-200">Repertorio de {selectedSinger.name}</h3>
-              <p className="text-xs text-slate-400">{filteredSongs.length} canción(es) registrada(s)</p>
-            </div>
-            {isAdmin && (
-              <button
-                onClick={() => handleDeleteSinger(selectedSinger.id)}
-                className="text-slate-500 hover:text-rose-400 transition-colors p-1 bg-slate-800 hover:bg-rose-500/10 rounded-md"
-                title="Eliminar cantante"
-              >
-                <Trash2 size={16} />
-              </button>
+        {/* Vista previa / Menú desplegable */}
+        {isDropdownOpen && (
+          <div className="absolute left-0 right-0 top-full mt-2 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-30 max-h-60 overflow-y-auto divide-y divide-slate-800/60">
+            {filteredSingers.length > 0 ? (
+              filteredSingers.map((singer) => {
+                const isSelected = selectedSingerId === singer.id;
+                return (
+                  <button
+                    key={singer.id}
+                    onClick={() => handleSelectSinger(singer)}
+                    className={`w-full text-left px-4 py-3 flex items-center justify-between hover:bg-slate-800/80 transition-colors ${
+                      isSelected ? 'bg-indigo-600/10 text-indigo-400' : 'text-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {isSelected && <Check size={14} className="text-indigo-400" />}
+                      <span className="font-medium text-xs">{singer.name}</span>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 bg-slate-800 text-slate-400 rounded-md border border-slate-700 font-mono">
+                      {singer.voiceType}
+                    </span>
+                  </button>
+                );
+              })
+            ) : (
+              <div className="p-4 text-center text-xs text-slate-500">
+                {singers.length === 0 ? "No hay cantantes registrados." : "No se encontraron resultados."}
+              </div>
             )}
-          </div>
-
-          <div className="relative">
-            <Search className="absolute left-3 top-2.5 text-slate-500" size={16} />
-            <input
-              type="text"
-              placeholder="Buscar canción por título o tonalidad..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Lista de Canciones */}
-      <div className="grid gap-3 sm:grid-cols-2">
-        {filteredSongs.map((song) => (
-          <div key={song.id} className="p-4 bg-slate-900 border border-slate-800 rounded-xl flex justify-between items-center">
-            <div>
-              <div className="flex items-center gap-2">
-                <Music2 size={16} className="text-indigo-400" />
-                <h4 className="text-sm font-semibold text-slate-100">{song.title}</h4>
-              </div>
-              <div className="flex items-center gap-2 mt-2">
-                <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-800/50 px-2 py-0.5 rounded">
-                  {song.key}
-                </span>
-                {song.bpm && (
-                  <span className="text-[10px] text-slate-400 font-mono">{song.bpm} BPM</span>
-                )}
-                {song.timeSignature && (
-                  <span className="text-[10px] text-slate-400 font-mono">{song.timeSignature}</span>
-                )}
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              {song.chordUrl && (
-                <a
-                  href={song.chordUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="p-2 bg-slate-800 hover:bg-indigo-600/20 text-indigo-400 border border-slate-700 hover:border-indigo-500/50 rounded-lg text-xs font-medium transition-colors flex items-center gap-1"
-                  title="Ver Acordes"
-                >
-                  Acordes <ExternalLink size={12} />
-                </a>
-              )}
-              {song.referenceUrl && (
-                <a
-                  href={song.referenceUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-xs transition-colors flex items-center gap-1"
-                  title="Referencia de audio/video"
-                >
-                  Ref <ExternalLink size={12} />
-                </a>
-              )}
-            </div>
-          </div>
-        ))}
-
-        {selectedSinger && filteredSongs.length === 0 && (
-          <div className="col-span-full text-center py-8 text-xs text-slate-500 border border-dashed border-slate-800 rounded-xl">
-            No se encontraron canciones para esta búsqueda.
           </div>
         )}
       </div>
+
+      {/* Contenido del Cantante Seleccionado */}
+      {selectedSinger ? (
+        <>
+          {/* Ficha del Cantante y Buscador Interno de Canciones */}
+          <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-slate-100">{selectedSinger.name}</h3>
+                  <span className="text-[10px] px-2 py-0.5 bg-indigo-950 text-indigo-400 border border-indigo-800/50 rounded-full font-mono">
+                    {selectedSinger.voiceType}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  {filteredSongs.length} canción(es) en su repertorio
+                </p>
+              </div>
+              {isAdmin && (
+                <button
+                  onClick={() => handleDeleteSinger(selectedSinger.id)}
+                  className="text-slate-500 hover:text-rose-400 transition-colors p-1.5 bg-slate-800 hover:bg-rose-500/10 rounded-lg"
+                  title="Eliminar cantante"
+                >
+                  <Trash2 size={16} />
+                </button>
+              )}
+            </div>
+
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 text-slate-500" size={16} />
+              <input
+                type="text"
+                placeholder={`Buscar en el repertorio de ${selectedSinger.name}...`}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+          </div>
+
+          {/* Lista de Canciones */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            {filteredSongs.map((song) => (
+              <div key={song.id} className="p-4 bg-slate-900 border border-slate-800 rounded-xl flex justify-between items-center">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Music2 size={16} className="text-indigo-400" />
+                    <h4 className="text-sm font-semibold text-slate-100">{song.title}</h4>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-800/50 px-2 py-0.5 rounded">
+                      {song.key}
+                    </span>
+                    {song.bpm && (
+                      <span className="text-[10px] text-slate-400 font-mono">{song.bpm} BPM</span>
+                    )}
+                    {song.timeSignature && (
+                      <span className="text-[10px] text-slate-400 font-mono">{song.timeSignature}</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  {song.chordUrl && (
+                    <a
+                      href={song.chordUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="p-2 bg-slate-800 hover:bg-indigo-600/20 text-indigo-400 border border-slate-700 hover:border-indigo-500/50 rounded-lg text-xs font-medium transition-colors flex items-center gap-1"
+                      title="Ver Acordes"
+                    >
+                      Acordes <ExternalLink size={12} />
+                    </a>
+                  )}
+                  {song.referenceUrl && (
+                    <a
+                      href={song.referenceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-xs transition-colors flex items-center gap-1"
+                      title="Referencia de audio/video"
+                    >
+                      Ref <ExternalLink size={12} />
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {filteredSongs.length === 0 && (
+              <div className="col-span-full text-center py-8 text-xs text-slate-500 border border-dashed border-slate-800 rounded-xl">
+                No se encontraron canciones registradas para este cantante.
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        /* Estado vacío cuando no hay cantante seleccionado */
+        <div className="text-center py-12 px-4 border border-dashed border-slate-800 rounded-2xl bg-slate-900/30">
+          <Search size={32} className="mx-auto text-slate-600 mb-3" />
+          <p className="text-sm font-medium text-slate-300">Selecciona un cantante</p>
+          <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
+            Utiliza la barra de búsqueda para seleccionar a un integrante del ministerio de alabanza.
+          </p>
+        </div>
+      )}
 
       {/* Modal Registrar Cantante */}
       {showModal && (
